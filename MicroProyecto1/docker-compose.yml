@@ -1,0 +1,320 @@
+services:
+
+  # ==================================================
+  # CONSUL
+  # ==================================================
+
+  consul:
+    image: hashicorp/consul:1.22.7
+
+    command:
+      - agent
+      - -server
+      - -ui
+      - -node=consul-server
+      - -bootstrap-expect=1
+      - -client=0.0.0.0
+
+    ports:
+      - "8500:8500"
+
+    networks:
+      - cloud_net
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "consul",
+          "members"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+
+  # ==================================================
+  # USERS DATABASE
+  # ==================================================
+
+  users_db:
+    image: mysql:8.0
+
+    environment:
+      MYSQL_DATABASE: ${USERS_DB_NAME}
+      MYSQL_USER: ${USERS_DB_USER}
+      MYSQL_PASSWORD: ${USERS_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${USERS_DB_ROOT_PASSWORD}
+
+    volumes:
+      - users_data:/var/lib/mysql
+      - ./database/users/init.sql:/docker-entrypoint-initdb.d/01-users.sql:ro
+
+    networks:
+      - cloud_net
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD} --silent"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+
+  # ==================================================
+  # MICRO USERS
+  # ==================================================
+
+  microusers:
+    build:
+      context: ./microUsers
+
+    env_file:
+      - .env
+
+    environment:
+      SERVICE_NAME: users
+      SERVICE_ID: users-1
+      SERVICE_ADDRESS: microusers
+      SERVICE_PORT: 5002
+
+    depends_on:
+      users_db:
+        condition: service_healthy
+
+      consul:
+        condition: service_healthy
+
+    ports:
+      - "5002:5002"
+
+    networks:
+      - cloud_net
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:5002/health')"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+
+  # ==================================================
+  # PRODUCTS DATABASE
+  # ==================================================
+
+  products_db:
+    image: mysql:8.0
+
+    environment:
+      MYSQL_DATABASE: ${PRODUCTS_DB_NAME}
+      MYSQL_USER: ${PRODUCTS_DB_USER}
+      MYSQL_PASSWORD: ${PRODUCTS_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${PRODUCTS_DB_ROOT_PASSWORD}
+
+    volumes:
+      - products_data:/var/lib/mysql
+      - ./database/products/init.sql:/docker-entrypoint-initdb.d/01-products.sql:ro
+
+    networks:
+      - cloud_net
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD} --silent"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+
+  # ==================================================
+  # MICRO PRODUCTS
+  # ==================================================
+
+  microproducts:
+    build:
+      context: ./microProducts
+
+    env_file:
+      - .env
+
+    environment:
+      SERVICE_NAME: products
+      SERVICE_ID: products-1
+      SERVICE_ADDRESS: microproducts
+      SERVICE_PORT: 5003
+
+    depends_on:
+      products_db:
+        condition: service_healthy
+
+      consul:
+        condition: service_healthy
+
+    ports:
+      - "5003:5003"
+
+    networks:
+      - cloud_net
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:5003/health')"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+
+  # ==================================================
+  # ORDERS DATABASE
+  # ==================================================
+
+  orders_db:
+    image: mysql:8.0
+
+    environment:
+      MYSQL_DATABASE: ${ORDERS_DB_NAME}
+      MYSQL_USER: ${ORDERS_DB_USER}
+      MYSQL_PASSWORD: ${ORDERS_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${ORDERS_DB_ROOT_PASSWORD}
+
+    volumes:
+      - orders_data:/var/lib/mysql
+      - ./database/orders/init.sql:/docker-entrypoint-initdb.d/01-orders.sql:ro
+
+    networks:
+      - cloud_net
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD} --silent"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+
+  # ==================================================
+  # MICRO ORDERS
+  # ==================================================
+
+  microorders:
+    build:
+      context: ./microOrders
+
+    env_file:
+      - .env
+
+    environment:
+      SERVICE_NAME: orders
+      SERVICE_ID: orders-1
+      SERVICE_ADDRESS: microorders
+      SERVICE_PORT: 5004
+
+    depends_on:
+      orders_db:
+        condition: service_healthy
+
+      consul:
+        condition: service_healthy
+
+    ports:
+      - "5004:5004"
+
+    networks:
+      - cloud_net
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:5004/health')"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+  # ==================================================
+  # FRONTEND
+  # ==================================================
+
+  frontend:
+    build:
+      context: ./frontend
+
+    depends_on:
+      microusers:
+        condition: service_healthy
+
+      microproducts:
+        condition: service_healthy
+
+      microorders:
+        condition: service_healthy
+
+    ports:
+      - "8080:5001"
+
+    networks:
+      - cloud_net
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+# ====================================================
+# RED INTERNA
+# ====================================================
+
+networks:
+
+  cloud_net:
+    driver: bridge
+
+
+# ====================================================
+# VOLUMENES PERSISTENTES
+# ====================================================
+
+volumes:
+
+  users_data:
+
+  products_data:
+
+  orders_data:
