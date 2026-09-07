@@ -95,22 +95,9 @@ def deregister_service(service_id):
 
 
 def setup_deregistration(service_id):
-
-    atexit.register(
-        deregister_service,
-        service_id
-    )
-
-    def handle_signal(signum, frame):
-        deregister_service(service_id)
-        raise SystemExit(0)
-
-    signal.signal(
-        signal.SIGTERM,
-        handle_signal
-    )
-
-    signal.signal(
-        signal.SIGINT,
-        handle_signal
-    )
+    """
+    Se mantiene el registro en Consul cuando el contenedor se detiene.
+    De esta forma, el health check de Consul detecta la caída y marca
+    el servicio como Critical.
+    """
+    return

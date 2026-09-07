@@ -213,7 +213,7 @@ function orderProducts() {
 
     if (!response.ok) {
         throw new Error(
-            data.message || `Error HTTP ${response.status}`
+            `HTTP ${response.status}: ${data.message || 'Error al procesar la orden'}`
         );
     }
 
@@ -229,7 +229,7 @@ function orderProducts() {
     getProducts();
 })
   .catch(error => {
-    console.error('Error:', error);
-    alert('Ocurrió un error al procesar la orden. Por favor, intenta nuevamente.');
+    console.error('Error al crear la orden:', error);
+    alert(error.message);
   });
 }
